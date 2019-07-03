@@ -1,0 +1,57 @@
+---
+title: "Data processing"
+author: "Yang Fu"
+date: "4/17/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+train = read.csv(file='train_abc.csv', header=T, sep=',')
+dim(train)
+test = read.csv(file='final_test_abc.csv', header=T, sep=',')
+dim(test)
+
+total = rbind(train, test)
+```
+
+# count Quality and Class
+```{r}
+
+table(total$class)
+table(total$quality)
+
+summary(total)
+```
+
+
+# generate correlation matrix
+```{r}
+train = read.csv(file='train.csv', header=T, sep=',')
+test = read.csv(file='final_test.csv', header=T, sep=',')
+
+total = rbind(train, test)
+```
+
+```{r}
+cormat = round(cor(total), 2)
+head(cormat)
+```
+
+```{r}
+library(corrplot)
+corrplot(cormat, method='shade', shade.col=NA, tl.col='black', tl.srt=45)
+```
+
+
+
+
+
+
+
+
+
+

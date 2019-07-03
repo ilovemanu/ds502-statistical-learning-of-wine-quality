@@ -1,0 +1,86 @@
+---
+title: "TREE.quality"
+author: "Yang Fu"
+date: "4/17/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(tree)
+library(mlearning)
+```
+
+```{r}
+total = read.csv(file='train.csv', header=T, sep=',')
+df = data.frame(total)
+
+final = read.csv(file='final_test.csv', header=T, sep=',')
+test.df = data.frame(final)
+test.x = subset(test.df, select=-quality)
+test.true = test.df$quality
+
+attach(df)
+```
+
+```{r}
+set.seed(10)
+train = sample(dim(df)[1], dim(df)[1]*0.5)
+dat.train = df[train,]
+dat.test = df[-train,]
+```
+
+tree
+```{r}
+tree = tree(as.factor(quality)~., data=dat.train)
+summary(tree)
+
+# train error
+mean(predict(tree, dat.train, type='class') != dat.train$quality)
+
+# test error
+mean(predict(tree, dat.test, type='class') != dat.test$quality)
+```
+
+prune tree
+```{r}
+set.seed(3)
+cv.out = cv.tree(tree)
+#cv.out
+#names(cv.out)
+#cv.out # size=9 has the minimal cv error(dev)
+
+#par(mfrow=c(1,2))
+plot(cv.out$size, cv.out$dev, type='b') # size=5
+plot(cv.out$k, cv.out$dev, type='b')
+
+prune.out = prune.misclass(tree, best=5)
+plot(prune.out)
+text(prune.out, pretty=0)
+```
+
+```{r}
+# train error
+mean(predict(prune.out, dat.train, type='class') != dat.train$quality)
+
+# test error
+test.pred = predict(prune.out, dat.test, type='class')
+table(test.pred, dat.test$quality)
+mean(test.pred != dat.test$quality)
+
+# final test error
+conf.pruned = confusion(y=predict(prune.out, test.x, type='class'), x=as.factor(test.true), labels=c('Pred', 'Truth'))
+print(conf.pruned, sort=FALSE, sum=FALSE)
+plot(conf.pruned, sort=FALSE)
+```
+
+
+
+
+
+
+

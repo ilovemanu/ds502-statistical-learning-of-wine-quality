@@ -1,0 +1,179 @@
+# multinomial logistic regression
+# training error: 21.76%
+# test error: 22.7%
+# final_test error: 21.2%
+
+#LDA
+#training error: 31.20%
+#test error: 22.99%
+#final_test error: 21.35%
+
+#QDA
+#training error: 40.6%
+#test error: 28.53%
+#final_test error:25.05%
+
+---
+title: "Untitled"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+
+Load data and convert to data.frame format.
+```{r cars}
+total = read.csv(file='train_abc.csv', header=T, sep=',')
+finaltest = read.csv(file='final_test_abc.csv', header=T, sep=',')
+df = subset(data.frame(total), select=-quality)
+ft = subset(data.frame(finaltest), select=-quality)
+```
+
+
+explore data
+- quality includes integers ranging from 3-9
+- 4872 x (11+1)
+- quality distribution is sort of normal
+
+```{r}
+attach(df)
+#names(df)
+#dim(df)
+#summary(df)
+#table(df$quality)
+```
+
+generate training and testing datasets
+
+```{r}
+set.seed(1)
+train = sample(dim(df)[1], dim(df)[1]*0.5)
+dat.train = df[train,]
+dat.test = df[-train,]
+summary(dat.train)
+```
+
+###perform Logistic Regression
+
+```{r}
+library(nnet)
+library(mlearning)
+
+mlogit_model = multinom(class ~ fixed.acidity+volatile.acidity+citric.acid+residual.sugar+chlorides+free.sulfur.dioxide+total.sulfur.dioxide+density+pH+sulphates+alcohol,data =dat.train, maxit = 1000) 
+
+# training error
+mean(predict(mlogit_model, subset(dat.train, select=-class)) != dat.train$class)
+
+#test error
+predictedML = predict(mlogit_model, subset(dat.test, select=-class))
+conf = confusion(predictedML, dat.test$class)
+print(conf, sums=FALSE, sort=FALSE)
+
+#final_test error
+conf.final = confusion(y=predict(mlogit_model, subset(ft, select=-class)), x=ft$class, labels=c('Pred', 'Truth'))
+print(conf.final, sums=FALSE, sort=FALSE)
+plot(conf.final, sort=FALSE)
+```
+
+##perform LDA
+
+```{r}
+library(MASS)
+lda.fit = lda(class~fixed.acidity+volatile.acidity+citric.acid+residual.sugar+chlorides+free.sulfur.dioxide+total.sulfur.dioxide+density+pH+sulphates+alcohol, data=dat.train)
+
+#plot(lda.fit)
+lda.pred=predict(lda.fit, dat.test)
+#names(lda.pred)
+lda.class=lda.pred$class
+
+#training MSE
+table(predict(lda.fit, dat.train)$class, dat.train$class)
+mean(predict(lda.fit, dat.train)$class != dat.train$class)
+
+#test MSE
+table(lda.class, dat.test$class)
+mean(lda.class != dat.test$class)
+
+#final_test
+lda.pred_ft = predict(lda.fit, subset(ft, select=-class))
+
+#lda.class_ft = lda.pred_ft$class
+#table(lda.class_ft, ft$class)
+#mean(lda.class_ft != ft$class)
+conf.lda = confusion(y=lda.pred_ft$class, x=ft$class, labels=c('Pred', 'Truth'))
+print(conf.lda, sums=FALSE, sort=FALSE)
+plot(conf.lda, sort=FALSE)
+
+```
+
+##perform QDA
+
+```{r}
+set.seed(1)
+qda.fit = qda(class~fixed.acidity+volatile.acidity+citric.acid+residual.sugar+chlorides+free.sulfur.dioxide+total.sulfur.dioxide+density+pH+sulphates+alcohol, data = dat.train)
+#qda.fit
+
+#plot(qda.fit)
+
+qda.pred=predict(qda.fit, dat.test)
+#names(qda.pred)
+qda.class=qda.pred$class
+
+#training error
+table(qda.class, dat.train$class)
+mean(qda.class != dat.train$class)
+
+#test error
+table(qda.class, dat.test$class)
+mean(qda.class != dat.test$class)
+
+#final_test error
+qda.pred_ft = predict(qda.fit, ft)
+#names(qda.pred_ft)
+
+#qda.class_ft = qda.pred_ft$class
+#table(qda.class_ft, ft$class)
+#mean(qda.class_ft != ft$class)
+conf.qda = confusion(y=qda.pred_ft$class, x=ft$class, labels=c('Pred', 'Truth'))
+print(conf.qda, sums=FALSE, sort=FALSE)
+plot(conf.qda, sort=FALSE)
+
+
+```
+
+#cross validation
+```{r}
+require(lattice)
+library(caret)
+# define training control
+train_control <- trainControl(method="cv", number=10)
+# fix the parameters of the algorithm
+grid <- expand.grid(.fL=c(1), .usekernel=c(FALSE))
+# train the model
+model <- train(Class~fixed.acidity+volatile.acidity+citric.acid+residual.sugar+chlorides+free.sulfur.dioxide+total.sulfur.dioxide+density+pH+sulphates+alcohol, data=dat.train, trControl=train_control, method="nb", tuneGrid=grid)
+# summarize results
+print(model)
+```
+
+
+
+
+#lasso
+```{r}
+library(glmnet)
+set.seed(100)
+X = dat.train$Class
+Y = model.matrix(Class ~ fixed.acidity+volatile.acidity+citric.acid+residual.sugar+chlorides+free.sulfur.dioxide+total.sulfur.dioxide+density+pH+sulphates+alcohol, data=dat.train )
+
+#lasso
+cv.out = cv.glmnet(Y, X, alpha = 1, family="multinom")
+plot(cv.out)
+lasso.mod = glmnet( Y, X, alpha=1, family="multinom" )
+bestlam=cv.out$lambda.1se
+bestlam
+Y_hat = predict(lasso.mod, s=bestlam, newx=model.matrix( Class ~ fixed.acidity+volatile.acidity+citric.acid+residual.sugar+chlorides+free.sulfur.dioxide+total.sulfur.dioxide+density+pH+sulphates+alcohol, data=dat.test ) )
+
+```
+

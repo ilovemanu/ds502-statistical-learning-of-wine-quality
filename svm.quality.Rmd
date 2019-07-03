@@ -1,0 +1,297 @@
+---
+title: "SVM_quality"
+author: "Yang Fu"
+date: "4/6/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Load data and convert to data.frame format.
+```{r}
+total = read.csv(file='train.csv', header=T, sep=',')
+df = data.frame(total)
+```
+
+explore data
+- quality includes integers ranging from 3-9
+- 4872 x (11+1)
+- quality distribution is sort of normal
+
+```{r}
+attach(df)
+#names(df)
+#dim(df)
+#summary(df)
+#table(df$quality)
+```
+
+generate training and testing datasets
+
+```{r}
+set.seed(1)
+train = sample(dim(df)[1], dim(df)[1]*0.5)
+dat.train = df[train,]
+dat.test = df[-train,]
+```
+
+SVM on training data
+
+```{r}
+library(e1071)
+library(mlearning)
+```
+
+SVM with linear kernel
+```{r}
+set.seed(1)
+tune.linear = tune(svm, as.factor(quality)~., data=dat.train, kernel='linear',
+                ranges=list(cost=c(0.1, 1, 10)))
+summary(tune.linear)
+```
+
+SVM with tuned linear kernel on test
+```{r}
+best.linear = svm(as.factor(quality)~., data=dat.train, kernel='linear', cost=0.1)
+train.error = mean(best.linear$fitted != dat.train$quality)
+train.error
+
+pred = predict(best.linear, subset(dat.test, select=-quality))
+conf = confusion(y=pred, x=as.factor(dat.test$quality), labels=c('Pred', 'Truth'))
+print(conf, sort=FALSE, sum=FALSE)
+plot(conf, sort=FALSE)
+```
+
+SVM poly
+```{r}
+set.seed(10)
+tune.poly = tune(svm, as.factor(quality)~., data=dat.train, kernel='polynomial',
+                ranges=list(degree=c(3,4,5), coef0=c(0.1,0.5,1,2,3,4)))
+summary(tune.poly)
+```
+
+best SVM with poly kernel
+```{r}
+best.poly = svm(as.factor(quality)~., data=dat.train[-quality], kernel='polynomial', degree=5, coef0=0.5)
+train.error = mean(best.poly$fitted != dat.train$quality)
+train.error
+
+pred = predict(best.poly, subset(dat.test, select=-quality))
+conf = confusion(y=pred, x=as.factor(dat.test$quality), labels=c('Pred', 'Truth'))
+print(conf, sort=FALSE, sum=FALSE)
+plot(conf, sort=FALSE)
+```
+
+SVM with radial kerne.
+```{r}
+set.seed(2)
+tune.radial =  tune(svm, as.factor(quality)~., data=dat.train, kernel='radial',
+                    ranges=list(cost=c(0.1, 1, 10),gamma=c(0.5,1,5)))
+summary(tune.radial)
+```
+
+```{r}
+best.radial = svm(as.factor(quality)~., data=dat.train[-quality], kernel='radial',
+                  cost=1, gamma=0.5)
+train.error = mean(best.radial$fitted != dat.train$quality)
+train.error
+
+pred = predict(best.radial, newdata=dat.test)
+conf = confusion(y=pred, x=as.factor(dat.test$quality), labels=c('Pred', 'Truth'))
+print(conf, sort=FALSE, sum=FALSE)
+plot(conf, sort=FALSE)
+```
+SVM sigmoid
+```{r}
+set.seed(3)
+tune.sig =  tune(svm, as.factor(quality)~., data=dat.train, kernel='sigmoid',
+                    ranges=list(cost=c(0.1, 1, 10),coef0=c(0,0.5,1)))
+summary(tune.sig)
+```
+
+```{r}
+best.sig = svm(as.factor(quality)~., data=dat.train, kernel='sigmoid', cost=0.1, coef0=0)
+train.error = mean(best.sig$fitted != dat.train$quality)
+train.error
+
+pred = predict(best.sig, newdata=dat.test)
+conf = confusion(y=pred, x=as.factor(dat.test$quality), labels=c('Pred', 'Truth'))
+print(conf, sort=FALSE, sum=FALSE)
+plot(conf, sort=FALSE)
+```
+
+test final test data
+```{r}
+# linear
+conf.linear = confusion(y=predict(best.linear, test.x), x=as.factor(test.df$quality), labels=c('Pred', 'Truth'))
+print(conf.linear, sort=FALSE, sum=FALSE)
+plot(conf.linear, sort=FALSE)
+
+# poly
+conf.poly = confusion(y=predict(best.poly, test.x), x=as.factor(test.df$quality), labels=c('Pred', 'Truth'))
+print(conf.poly, sort=FALSE, sum=FALSE)
+plot(conf.poly, sort=FALSE)
+
+# radial
+conf.radial = confusion(y=predict(best.radial, test.x), x=as.factor(test.df$quality), labels=c('Pred', 'Truth'))
+print(conf.radial, sort=FALSE, sum=FALSE)
+plot(conf.radial, sort=FALSE)
+
+# sigmoid
+conf.sig = confusion(y=predict(best.sig, test.x), x=as.factor(test.df$quality), labels=c('Pred', 'Truth'))
+print(conf.sig, sort=FALSE, sum=FALSE)
+plot(conf.sig, sort=FALSE)
+```
+
+
+
+perform PCA to reduce dimension.
+```{r}
+pca.out = prcomp(subset(df, select=-quality))#, scale=TRUE)
+pca.var = pca.out$sdev^2
+pve = pca.var/sum(pca.var)
+plot(pve, xlab='PC', ylab='Proportion', ylim=c(0,1), type='b')
+plot(cumsum(pve), xlab='PC', ylab='Cumulative', ylim=c(0,1), type='b')
+
+# based on the curve, choose PC 2-5
+for (i in 2:5) {
+  assign(paste("pca.train", i, sep = ""), data.frame(pca.out$x[,1:i][train,], quality=quality[train]))  
+  assign(paste("pca.test", i, sep = ""), pca.out$x[,1:i][-train,]) 
+}
+
+```
+
+PCA + linear SVM on training data 
+```{r}
+#set.seed(1)
+tune.linear.pca2 = tune(svm, as.factor(quality)~., data=pca.train2, kernel='linear',
+                ranges=list(cost=c(0.001, 0.01, 0.1, 1, 10)))
+#tune.linear.pca3 = tune(svm, as.factor(quality)~., data=pca.train3, kernel='linear',
+                #ranges=list(cost=c(0.001, 0.01, 0.1, 1, 10)))
+#tune.linear.pca4 = tune(svm, as.factor(quality)~., data=pca.train4, kernel='linear',
+                #ranges=list(cost=c(0.001, 0.01, 0.1, 1, 10)))
+#tune.linear.pca5 = tune(svm, as.factor(quality)~., data=pca.train5, kernel='linear',
+                #ranges=list(cost=c(0.001, 0.01, 0.1, 1, 10)))
+
+mean(tune.linear.pca2$best.model$fitted != dat.train$quality)
+#mean(tune.linear.pca3$best.model$fitted != dat.train$quality)
+#mean(tune.linear.pca4$best.model$fitted != dat.train$quality)
+#mean(tune.linear.pca5$best.model$fitted != dat.train$quality)
+```
+on test data
+```{r}
+pred2 = predict(tune.linear.pca2$best.model, pca.test2)
+mean(pred2 != dat.test$quality)
+mean(predict(tune.linear.pca3$best.model, pca.test3) != dat.test$quality)
+mean(predict(tune.linear.pca4$best.model, pca.test4) != dat.test$quality)
+mean(predict(tune.linear.pca5$best.model, pca.test5) != dat.test$quality)
+```
+
+PCA + poly SVM # 4: degree5 co1
+```{r}
+#tune.poly.pca2 = tune(svm, as.factor(quality)~., data=pca.train3, kernel='polynomial',
+                #ranges=list(degree=c(3,4,5), coef0=c(0.1,0.5,1,2,3,4)))
+#tune.poly.pca3 = tune(svm, as.factor(quality)~., data=pca.train3, kernel='polynomial',
+                #ranges=list(degree=c(3,4,5), coef0=c(0.1,0.5,1)))
+tune.poly.pca4 = tune(svm, as.factor(quality)~., data=pca.train4, kernel='polynomial',
+                ranges=list(degree=c(3,4,5), coef0=c(0.1,0.5,1)))
+#tune.poly.pca5 = tune(svm, as.factor(quality)~., data=pca.train5, kernel='polynomial',
+                #ranges=list(degree=c(3,4,5), coef0=c(0.1,0.5,1,2,3,4)))
+
+#mean(tune.poly.pca2$best.model$fitted != dat.train$quality)
+#mean(tune.poly.pca3$best.model$fitted != dat.train$quality)
+mean(tune.poly.pca4$best.model$fitted != dat.train$quality)
+#mean(tune.poly.pca5$best.model$fitted != dat.train$quality)
+
+```
+on test
+```{r}
+summary(tune.poly.pca4)
+mean(predict(tune.poly.pca4$best.model, pca.test4) != dat.test$quality)
+```
+
+PCA + radial SVM # tuned cost=10, gamma=0.1
+```{r}
+#set.seed(2)
+tune.radial.pca2 =  tune(svm, as.factor(quality)~., data=pca.train2, kernel='radial', ranges=list(cost=c(0.1, 1, 10),
+                                                                                            gamma=c(0.05,0.1,0.5,1)))
+tune.radial.pca3 =  tune(svm, as.factor(quality)~., data=pca.train3, kernel='radial', ranges=list(cost=c(0.1, 1, 10),
+                                                                                            gamma=c(0.05,0.1,0.5,1)))
+tune.radial.pca4 =  tune(svm, as.factor(quality)~., data=pca.train4, kernel='radial', ranges=list(cost=c(0.1, 1, 10),
+                                                                                            gamma=c(0.05,0.1,0.5,1)))
+tune.radial.pca5 =  tune(svm, as.factor(quality)~., data=pca.train5, kernel='radial', ranges=list(cost=c(0.1, 1, 10),
+                                                                                            gamma=c(0.05,0.1,0.5,1)))
+#summary(tune.radial.pca)
+
+# train
+mean(tune.radial.pca2$best.model$fitted != dat.train$quality)
+mean(tune.radial.pca3$best.model$fitted != dat.train$quality)
+mean(tune.radial.pca4$best.model$fitted != dat.train$quality)
+mean(tune.radial.pca5$best.model$fitted != dat.train$quality)
+
+```
+
+on testing dataset
+```{r}
+
+mean(predict(tune.radial.pca2$best.model, pca.test2) != dat.test$quality)
+mean(predict(tune.radial.pca3$best.model, pca.test3) != dat.test$quality)
+mean(predict(tune.radial.pca4$best.model, pca.test4) != dat.test$quality)
+mean(predict(tune.radial.pca5$best.model, pca.test5) != dat.test$quality)
+
+```
+
+on final testing data
+```{r}
+final = read.csv(file='final_test.csv', header=T, sep=',')
+test.df = data.frame(final)
+test.x = subset(test.df, select=-quality)
+test.true = test.df$quality
+
+# for PCA
+set.seed(10)
+pca.test.final = prcomp(subset(test.df, select=-quality), scale=TRUE)
+
+for (i in 2:5) {
+  assign(paste("pca.test.final", i, sep = ""), pca.test.final$x[,1:i]) 
+}
+
+#pca.test.final2
+#pca.test.final4
+```
+
+final PCA poly svm
+```{r}
+mean(predict(tune.poly.pca4$best.model, pca.test.final4) != test.true)
+```
+
+final PCA radial svm
+```{r}
+mean(predict(tune.radial.pca2$best.model, pca.test.final2) != test.true)
+mean(predict(tune.radial.pca3$best.model, pca.test.final3) != test.true)
+mean(predict(tune.radial.pca4$best.model, pca.test.final4) != test.true)
+mean(predict(tune.radial.pca5$best.model, pca.test.final5) != test.true)
+```
+
+final PCA linear svm
+```{r}
+
+mean(predict(tune.linear.pca2$best.model, pca.test.final2) != test.true)
+mean(predict(tune.linear.pca3$best.model, pca.test.final3) != test.true)
+mean(predict(tune.linear.pca4$best.model, pca.test.final4) != test.true)
+mean(predict(tune.linear.pca5$best.model, pca.test.final5) != test.true)
+
+```
+
+final linear, poly, radial, and sigmoid svm
+```{r}
+mean(predict(tune.linear$best.model, subset(test.df, select=-quality)) != test.true)
+mean(predict(tune.poly$best.model, subset(test.df, select=-quality)) != test.true)
+mean(predict(tune.radial$best.model, subset(test.df, select=-quality)) != test.true)
+mean(predict(tune.sig$best.model, subset(test.df, select=-quality)) != test.true)
+```
+
+ROC curves
+

@@ -1,0 +1,143 @@
+#multinomial logistic regression
+#training error: 46.39%
+#test error: 45.89%%
+#final_test error: 45.48%%
+
+#LDA
+#training error: 46.84%
+#test error: 46.92%
+#final_test error: 45.05%
+
+---
+title: "Untitled"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+
+Load data and convert to data.frame format.
+```{r cars}
+total = read.csv(file='train.csv', header=T, sep=',')
+finaltest = read.csv(file='final_test.csv', header=T, sep=',')
+df = data.frame(total)
+ft = data.frame(finaltest)
+```
+
+
+explore data
+- quality includes integers ranging from 3-9
+- 4872 x (11+1)
+- quality distribution is sort of normal
+
+```{r}
+attach(df)
+#names(df)
+#dim(df)
+#summary(df)
+#table(df$quality)
+```
+
+generate training and testing datasets
+
+```{r}
+set.seed(1)
+train = sample(dim(df)[1], dim(df)[1]*0.5)
+dat.train = df[train,]
+dat.test = df[-train,]
+```
+
+
+###perform Logistic Regression
+
+```{r}
+library(nnet)
+
+dat.train$quality = as.factor(dat.train$quality)
+mlogit_model = multinom(as.factor(quality) ~ fixed.acidity+volatile.acidity+citric.acid+residual.sugar+chlorides+free.sulfur.dioxide+total.sulfur.dioxide+density+pH+sulphates+alcohol,data =dat.train, maxit = 1000)
+#mlogit_model
+
+#mlogit_output = summary(mlogit_model)
+#mlogit_output
+#mlogit_output$coefficients
+
+#oddsML = exp(coef(mlogit_output))
+#print(oddsML, digits =2)
+
+#training error
+mean(predict(mlogit_model,dat.train) != as.character(dat.train$quality))
+
+#test error
+predictedML = predict(mlogit_model,dat.test)
+mean(predict(mlogit_model,dat.test) != as.character(dat.test$quality))
+
+#final_test error
+predict_ft = predict(mlogit_model, ft)
+conf.ml = confusion(y=predict_ft, x=as.factor(ft$quality), labels=c('Pred', 'Truth'))
+print(conf.ml, sums=FALSE, sort=FALSE)
+plot(conf.ml, sort=FALSE)
+```
+
+##perform LDA
+
+```{r}
+#perform LDA model
+library(MASS)
+lda.fit = lda(quality~fixed.acidity+volatile.acidity+citric.acid+residual.sugar+chlorides+
+              free.sulfur.dioxide+total.sulfur.dioxide+density+pH+sulphates+alcohol, data=dat.train)
+#lda.fit
+#plot(lda.fit)
+lda.pred=predict(lda.fit, dat.test)
+#names(lda.pred)
+
+#training MSE
+table(predict(lda.fit, dat.train)$class, dat.train$quality)
+mean(predict(lda.fit, dat.train)$class != dat.train$quality)
+
+#test MSE
+table(lda.pred$class, dat.test$quality)
+mean(lda.pred$class != dat.test$quality)
+
+#final_test
+lda.pred_ft = predict(lda.fit, ft)
+#names(lda.pred_ft)
+conf.lda = confusion(y=lda.pred_ft$class, x=as.factor(ft$quality), labels=c('Pred', 'Truth'))
+print(conf.lda, sums=FALSE, sort=FALSE)
+plot(conf.lda, sort=FALSE)
+
+```
+
+
+
+##perform QDA
+##could not perform QDA on data with Quality as the response because some quality groups are too small.
+```{r}
+table(dat.train$quality)
+
+#set.seed(1)
+#str(dat.train)
+#summary(dat.train)
+#with(dat.train, table(quality))
+#dat.train = data.frame(type=rep(c("3","4","5","6","7","8","9"),each=100),
+                 #mono_score=runif(100,0,100),
+                 #dicot_score=runif(100,0,100))
+
+#qda.fit = qda(quality~fixed.acidity+volatile.acidity+citric.acid+residual.sugar+chlorides+ free.sulfur.dioxide+total.sulfur.dioxide+density+pH+sulphates+alcohol, data =  dat.train)
+#qda.fit
+#plot(lda.fit)
+
+#qda.pred=predict(qda.fit, dat.test)
+#names(qda.pred)
+#qda.class=qda.pred$class
+
+#table(qda.class, dat.train$quality)
+#mean(qda.class != dat.train$quality)
+
+#table(qda.class, dat.test$quality)
+#mean(qda.class != dat.test$quality)
+```
+
+
+

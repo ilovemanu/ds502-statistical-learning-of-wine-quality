@@ -1,0 +1,160 @@
+---
+title: "SVM_abc"
+author: "Yang Fu"
+date: "4/15/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+load data
+
+```{r}
+total.abc = read.csv(file='train_abc.csv', header=T, sep=',')
+df.abc = subset(data.frame(total.abc), select=-quality)
+head(df.abc)
+```
+
+```{r}
+attach(df.abc)
+names(df.abc)
+#dim(df.abc)
+#summary(df.abc)
+#table(df.abc$class)
+```
+
+```{r}
+set.seed(10)
+train = sample(dim(df.abc)[1], dim(df.abc)[1]*0.5)
+train.abc = df.abc[train,]
+test.abc = df.abc[-train,]
+```
+
+```{r}
+library(e1071)
+library(mlearning)
+```
+
+SVM linear
+```{r}
+set.seed(2)
+tune.linear = tune(svm, class~., data=train.abc, kernel='linear',
+                ranges=list(cost=c(0.01, 0.1, 1, 10)))
+summary(tune.linear)
+
+```
+
+```{r}
+best.linear = svm(class~., data=train.abc, kernel='linear', cost=1)
+train.error = mean(best.linear$fitted != train.abc$class)
+train.error
+
+pred = predict(best.linear, subset(test.abc, select=-class))
+conf = confusion(y=pred, x=test.abc$class, labels=c('Pred', 'Truth'))
+print(conf, sort=FALSE, sum=FALSE)
+plot(conf, sort=FALSE)
+```
+
+SVM poly
+```{r}
+set.seed(3)
+tune.poly = tune(svm, class~., data=train.abc, kernel='polynomial',
+                ranges=list(degree=c(2,3,4,5), coef0=c(0,0.1,0.5)))
+summary(tune.poly)
+```
+
+```{r}
+best.poly = svm(class~., data=train.abc, kernel='polynomial',coef0=0.5, degree=3)
+train.error = mean(best.poly$fitted != train.abc$class)
+train.error
+
+pred = predict(best.poly, subset(test.abc, select=-class))
+conf = confusion(y=pred, x=test.abc$class, labels=c('Pred', 'Truth'))
+print(conf, sort=FALSE, sum=FALSE)
+plot(conf, sort=FALSE)
+```
+
+
+SVM radial
+```{r}
+set.seed(10)
+tune.radial =  tune(svm, class~., data=train.abc, kernel='radial',
+                    ranges=list(cost=c(0.1, 1, 10),gamma=c(0.5,1,2,5)))
+summary(tune.radial)
+```
+
+```{r}
+best.radial = svm(class~., data=train.abc, kernel='radial', cost=10, gamma=2)
+train.error = mean(best.radial$fitted != train.abc$class)
+train.error
+
+pred = predict(best.radial, subset(test.abc, select=-class))
+conf = confusion(y=pred, x=test.abc$class, labels=c('Pred', 'Truth'))
+print(conf, sort=FALSE, sum=FALSE)
+plot(conf, sort=FALSE)
+```
+
+SVM sigmoid
+```{r}
+set.seed(1)
+tune.sig = tune(svm, class~., data=train.abc, kernel='sigmoid',
+                ranges=list(coef0=c(0,0.1,0.5),
+                            cost=c(0.1,1,10)))
+summary(tune.sig)
+```
+
+```{r}
+best.sig = svm(class~., data=train.abc, kernel='sigmoid', cost=0.1, coef0=0)
+train.error = mean(best.sig$fitted != train.abc$class)
+train.error
+
+pred = predict(best.sig, subset(test.abc, select=-class))
+conf = confusion(y=pred, x=test.abc$class, labels=c('Pred', 'Truth'))
+print(conf, sort=FALSE, sum=FALSE)
+plot(conf, sort=FALSE)
+```
+
+process final test data
+```{r}
+final = read.csv(file='final_test_abc.csv', header=T, sep=',')
+test.df = subset(data.frame(final), select=-quality)
+test.x = subset(test.df, select=-class)
+test.true = test.df$class
+```
+
+performance on final test
+```{r}
+# linear
+conf.linear = confusion(y=predict(best.linear, test.x), x=test.true, labels=c('Pred', 'Truth'))
+print(conf.linear, sort=FALSE, sum=FALSE)
+plot(conf.linear, sort=FALSE)
+
+# poly
+conf.poly = confusion(y=predict(best.poly, test.x), x=test.true, labels=c('Pred', 'Truth'))
+print(conf.poly, sort=FALSE, sum=FALSE)
+plot(conf.poly, sort=FALSE)
+
+# radial
+conf.radial = confusion(y=predict(best.radial, test.x), x=test.true, labels=c('Pred', 'Truth'))
+print(conf.radial, sort=FALSE, sum=FALSE)
+plot(conf.radial, sort=FALSE)
+
+# sigmoid
+conf.sig = confusion(y=predict(best.sig, test.x), x=test.true, labels=c('Pred', 'Truth'))
+print(conf.sig, sort=FALSE, sum=FALSE)
+plot(conf.sig, sort=FALSE)
+```
+
+
+
+
+
+
+
+
+
+
+
+

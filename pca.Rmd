@@ -1,0 +1,200 @@
+---
+title: "PCA"
+author: "Yang Fu"
+date: "4/17/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Load data
+```{r}
+total.abc = read.csv(file='train_abc.csv', header=T, sep=',')
+df.abc = subset(data.frame(total.abc), select=-quality)
+#head(df.abc)
+
+set.seed(10)
+train = sample(dim(df.abc)[1], dim(df.abc)[1]*0.5)
+train.abc = df.abc[train,]
+test.abc = df.abc[-train,]
+```
+
+```{r}
+library(ggplot2)
+```
+
+
+```{r}
+pca.out = prcomp(subset(df.abc, select=-class), scale=TRUE)
+pca.var = pca.out$sdev^2
+pve = pca.var/sum(pca.var)
+qplot(x=c(1:11), y=pve) +
+  geom_line() +
+  xlab('PC') +
+  ylab('Prop. of Variance Explained') +
+  ylim(0,1) + 
+  scale_x_discrete(limits=c(1:11))
+qplot(x=c(1:11), y=cumsum(pve)) + 
+  geom_line() +
+  xlab('PC') +
+  ylab('Cumulative Prop. of Variance Explained') +
+  ylim(0,1) +
+  scale_x_discrete(limits=c(1:11))
+
+#summary(pca.out)
+#biplot(pca.out, scale=0)
+
+# based on the curve, choose PC 4-8
+for (i in 4:8) {
+  assign(paste("pca.train", i, sep = ""), data.frame(pca.out$x[,1:i][train,], class=df.abc$class))  
+  assign(paste("pca.test", i, sep = ""), data.frame(pca.out$x[,1:i][-train,]))
+}
+pca.train4
+```
+
+PCA SVM radial
+```{r}
+set.seed(7)
+tune.radial.pca4 =  tune(svm, class~., data=pca.train4, kernel='radial',
+                    ranges=list(cost=c(0.01, 0.1, 1, 10),gamma=c(0.5,1,2,5)))
+summary(tune.radial.pca4)
+
+tune.radial.pca7 =  tune(svm, class~., data=pca.train7, kernel='radial',
+                    ranges=list(cost=c(0.01, 0.1, 1, 10),gamma=c(0.5,1,2,5)))
+summary(tune.radial.pca7)
+```
+
+performance on test data
+```{r}
+# PC4
+best.r4 = svm(class~., data=pca.train4, kernel='radial', cost=1, gamma=5)
+mean(best.r4$fitted != pca.train4$class)
+
+conf.r4 = confusion(y=predict(best.r4, pca.test4), x=test.abc$class, labels=c('Pred', 'Truth'))
+print(conf.r4, sort=FALSE, sum=FALSE)
+plot(conf.r4, sort=FALSE)
+
+# PC7
+best.r7 = svm(class~., data=pca.train7, kernel='radial', cost=10, gamma=5)
+mean(best.r7$fitted != pca.train7$class)
+
+conf.r7 = confusion(y=predict(best.r7, pca.test7), x=test.abc$class, labels=c('Pred', 'Truth'))
+print(conf.r7, sort=FALSE, sum=FALSE)
+plot(conf.r7, sort=FALSE)
+```
+
+performance on final test
+```{r}
+final = read.csv(file='final_test_abc.csv', header=T, sep=',')
+test.df = subset(data.frame(final), select=-quality)
+test.x = subset(test.df, select=-class)
+test.true = test.df$class
+
+set.seed(10)
+pca.test.final = prcomp(test.x, scale=TRUE)
+
+for (i in 2:8) {
+  assign(paste("pca.test.final", i, sep = ""), pca.test.final$x[,1:i]) 
+}
+
+```
+
+```{r}
+conf.final.r4 = confusion(y=predict(best.r4, pca.test.final4), x=test.true, labels=c('Pred', 'Truth'))
+print(conf.final.r4, sort=FALSE, sum=FALSE)
+plot(conf.final.r4, sort=FALSE)
+
+conf.final.r7 = confusion(y=predict(best.r7, pca.test.final7), x=test.true, labels=c('Pred', 'Truth'))
+print(conf.final.r7, sort=FALSE, sum=FALSE)
+plot(conf.final.r7, sort=FALSE)
+```
+
+multinomial logistic regression
+```{r}
+library(nnet)
+```
+
+```{r}
+ml4 = multinom(class ~., data=pca.train4)
+mean(predict(ml4, pca.train4) != pca.train4$class)
+conf.ml4 = confusion(y=predict(ml4, newdata=pca.test4), x=train.abc$class, labels=c('Pred', 'Truth'))
+print(conf.final.r4, sort=FALSE, sum=FALSE)
+plot(conf.final.r4, sort=FALSE)
+
+ml7 = multinom(class ~., data=pca.train7)
+mean(predict(ml7, pca.train7) != pca.train7$class)
+conf.ml7 = confusion(y=predict(ml7, newdata=pca.test7), x=train.abc$class, labels=c('Pred', 'Truth'))
+print(conf.final.r7, sort=FALSE, sum=FALSE)
+plot(conf.final.r7, sort=FALSE)
+```
+
+```{r}
+conf.final.r4 = confusion(y=predict(ml4, pca.test.final4), x=test.true, labels=c('Pred', 'Truth'))
+print(conf.final.r4, sort=FALSE, sum=FALSE)
+plot(conf.final.r4, sort=FALSE)
+
+conf.final.r7 = confusion(y=predict(ml7, pca.test.final7), x=test.true, labels=c('Pred', 'Truth'))
+print(conf.final.r7, sort=FALSE, sum=FALSE)
+plot(conf.final.r7, sort=FALSE)
+```
+
+
+```{r}
+library(tree)
+
+# PC4
+tree.abc4 = tree(class~., data=pca.train4)
+#summary(tree.abc)
+
+# train error
+mean(predict(tree.abc4, pca.train4, type='class') != train.abc$class)
+
+# test error
+mean(predict(tree.abc4, pca.test4, type='class') != test.abc$class)
+
+# PC7
+tree.abc7 = tree(class~., data=pca.train7)
+#summary(tree.abc)
+
+# train error
+mean(predict(tree.abc7, pca.train7, type='class') != train.abc$class)
+
+# test error
+mean(predict(tree.abc7, pca.test7, type='class') != test.abc$class)
+
+```
+
+prune tree
+# unsuccessful. tree.abc7 and tree.abc7 are both singlenode.
+```{r}
+set.seed(3)
+cv.out4 = cv.tree(tree.abc4)
+cv.out4
+
+```
+
+
+```{r}
+library(randomForest)
+
+set.seed(3)
+rf.abc4 = randomForest(class~., data=pca.train4, mtry=2, importance=TRUE) #rtsq(p) between 3 and 4
+rf.pred4 = predict(rf.abc4, pca.test4)
+table(rf.pred4 != train.abc$class)
+mean(rf.pred4 != train.abc$class)
+
+rf.abc7 = randomForest(class~., data=pca.train7, mtry=3, importance=TRUE) #rtsq(p) between 3 and 4
+rf.pred7 = predict(rf.abc7, pca.test7)
+table(rf.pred7 != train.abc$class)
+mean(rf.pred7 != train.abc$class)
+
+```
+
+
+
+
+
+
+
